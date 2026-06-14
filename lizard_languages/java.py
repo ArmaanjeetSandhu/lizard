@@ -61,6 +61,7 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
         self.handling_dot_class = False
         self.handling_method_ref = False
         self._java_after_unqualified_annotation = False
+        self._new_generic_depth = 0
 
     def _consume_java_expression_tokens(self, token):
         """Skip tokens that are not class declarations: Foo.class, Type::meth."""
@@ -186,6 +187,26 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
             self.in_record_constructor = False
             self._state = self._state_global
 
+    def _state_new(self, token):
+        self._new_generic_depth = 0
+        self.next(self._state_new_parameters)
+
+    def _state_new_parameters(self, token):
+        if self._new_generic_depth > 0 or token == "<":
+            # Skip the instantiated type's generic arguments, e.g. the <Long> in
+            # new ThreadLocal<Long>(), so they don't end the search for '(' / '{'.
+            self._new_generic_depth += token.count("<") - token.count(">")
+            return
+        if token == "(":
+            self.sub_state(JavaFunctionBodyStates(self.context, False), None, token)
+            return
+        if token == "{":
+            def callback():
+                self.next(self._state_global)
+            self.sub_state(JavaClassBodyStates("(anonymous)", False, self.context), callback, token)
+            return
+        self.next(self._state_global, token)
+
 
 class JavaFunctionBodyStates(JavaStates):
     def __init__(self, context, exit_with_brace_depth=True):
@@ -228,20 +249,6 @@ class JavaFunctionBodyStates(JavaStates):
     def _state_dummy(self, _):
         pass
 
-    def _state_new(self, token):
-        self.next(self._state_new_parameters)
-
-    def _state_new_parameters(self, token):
-        if token == "(":
-            self.sub_state(JavaFunctionBodyStates(self.context, False), None, token)
-            return
-        if token == "{":
-            def callback():
-                self.next(self._state_global)
-            self.sub_state(JavaClassBodyStates("(anonymous)", False, self.context), callback, token)
-            return
-        self.next(self._state_global, token)
-
 
 class JavaClassBodyStates(JavaStates):
     def __init__(self, class_name, is_record, context):
@@ -280,6 +287,13 @@ class JavaClassBodyStates(JavaStates):
             def _after_init_block():
                 self._class_body_brace -= 1
             self.sub_state(JavaFunctionBodyStates(self.context, True), _after_init_block, token)
+            return
+
+        if token == 'new':
+            # A field initializer may instantiate an anonymous class
+            # (= new Type<...>() { ... }); handle it so the field is not parsed as
+            # a method and the anonymous body's own methods are still counted.
+            self.next(self._state_new)
             return
 
         super()._state_global(token)
