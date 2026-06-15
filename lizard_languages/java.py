@@ -192,9 +192,10 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
         self.next(self._state_new_parameters)
 
     def _state_new_parameters(self, token):
-        if self._new_generic_depth > 0 or token == "<":
+        if self._new_generic_depth > 0 or token.startswith("<"):
             # Skip the instantiated type's generic arguments, e.g. the <Long> in
-            # new ThreadLocal<Long>(), so they don't end the search for '(' / '{'.
+            # new ThreadLocal<Long>() or the <? super T> wildcard token, so they
+            # don't end the search for '(' / '{'.
             self._new_generic_depth += token.count("<") - token.count(">")
             return
         if token == "(":
@@ -204,6 +205,9 @@ class JavaStates(CLikeStates):  # pylint: disable=R0903
             def callback():
                 self.next(self._state_global)
             self.sub_state(JavaClassBodyStates("(anonymous)", False, self.context), callback, token)
+            return
+        if token == "." or token[0].isalpha() or token[0] == '_':
+            # Unqualified or qualified type name segment before '(' / '{'.
             return
         self.next(self._state_global, token)
 

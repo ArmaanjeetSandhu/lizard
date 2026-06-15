@@ -78,6 +78,37 @@ class T {
         self.assertIn("(anonymous)::customSize", names)
         self.assertIn("T::realOuter", names)
 
+    def test_wildcard_generic_anonymous_class(self):
+        code = """
+class T {
+    void m() {
+        Comparator<? super String> c = new Comparator<? super String>() {
+            public int compare(String a, String b) { return 0; }
+        };
+    }
+}
+"""
+        result = get_java_function_list(code)
+        names = [f.name for f in result]
+        self.assertIn("T::m", names)
+        self.assertIn("(anonymous)::compare", names)
+
+    def test_qualified_type_anonymous_class(self):
+        code = """
+class T {
+    private java.util.Map<String, String> m = new java.util.HashMap<String, String>() {
+        public int customSize() { return size(); }
+    };
+    void realOuter() {}
+}
+"""
+        result = get_java_function_list(code)
+        names = [f.name for f in result]
+        self.assertEqual(2, len(result))
+        self.assertNotIn("T::HashMap<String,String>", names)
+        self.assertIn("(anonymous)::customSize", names)
+        self.assertIn("T::realOuter", names)
+
     def test_function_with_decorator(self):
         result = get_java_function_list("@abc() void fun() throws e1, e2{}")
         self.assertEqual(1, len(result))
