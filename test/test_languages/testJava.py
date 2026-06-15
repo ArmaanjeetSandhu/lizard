@@ -683,3 +683,34 @@ public class Example {
         self.assertEqual(2, len(result))
         self.assertEqual("Example::process", result[0].name)
         self.assertEqual("Example::anotherMethod", result[1].name)
+
+    def test_issue_470_record_name_and_static_init(self):
+        """Issue #470: 'record' as field or method; static/annotation must not add bogus functions."""
+        code = """
+import java.util.List;
+public class LizardTest {
+    private String[] unixCmd = {};
+    static {
+        if (true) {
+        }
+    }
+    private String record;
+    @Transactional(rollbackFor = Exception.class)
+    public void test1() {
+        List<String> list = new java.util.ArrayList<>();
+    }
+    private String record(String name) {
+        if (name.equals("a")) {
+        }
+        for (int i = 0; i < 10; i++) {
+        }
+        return "";
+    }
+}
+"""
+        result = get_java_function_list(code)
+        names = sorted(f.name for f in result)
+        self.assertEqual(
+            ["LizardTest::record", "LizardTest::test1"],
+            names,
+        )
