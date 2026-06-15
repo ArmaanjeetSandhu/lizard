@@ -31,6 +31,53 @@ public String funcB() {
         result = get_java_function_list("void fun() throws e1, e2{}")
         self.assertEqual(1, len(result))
 
+    def test_anonymous_class_in_field_initializer_issue_311(self):
+        code = """
+class T {
+    private ThreadLocal<Long> startTime = new ThreadLocal<Long>() {
+        @Override protected Long initialValue() { return 0L; }
+    };
+    void realMethod() { System.out.println("hi"); }
+}
+"""
+        result = get_java_function_list(code)
+        names = [f.name for f in result]
+        # the field declaration must not be picked up as a method
+        self.assertNotIn("T::ThreadLocal<Long>", names)
+        # the anonymous class's real method should be counted
+        self.assertIn("(anonymous)::initialValue", names)
+        self.assertIn("T::realMethod", names)
+
+    def test_generic_anonymous_class_in_method_body(self):
+        code = """
+class T {
+    void m() {
+        ThreadLocal<Long> x = new ThreadLocal<Long>() {
+            protected Long initialValue() { return 0L; }
+        };
+    }
+}
+"""
+        result = get_java_function_list(code)
+        names = [f.name for f in result]
+        self.assertIn("T::m", names)
+        self.assertIn("(anonymous)::initialValue", names)
+
+    def test_nested_generic_anonymous_class(self):
+        code = """
+class T {
+    private Map<String, List<Long>> m = new HashMap<String, List<Long>>() {
+        public int customSize() { if (isEmpty()) return 0; return 1; }
+    };
+    void realOuter() {}
+}
+"""
+        result = get_java_function_list(code)
+        names = [f.name for f in result]
+        self.assertEqual(2, len(result))
+        self.assertIn("(anonymous)::customSize", names)
+        self.assertIn("T::realOuter", names)
+
     def test_function_with_decorator(self):
         result = get_java_function_list("@abc() void fun() throws e1, e2{}")
         self.assertEqual(1, len(result))
