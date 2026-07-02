@@ -208,6 +208,17 @@ class TestHalsteadClassifierUnit(unittest.TestCase):
         self.assertEqual(HalsteadClassifier.OPERAND,
                          self.python.classify('42'))
 
+    def test_leading_dot_float_is_operand(self):
+        # Some tokenizers (e.g. C-family) emit ``.5`` as a single token.
+        for token in ('.5', '.5e3', '.25E-4', '0.5', '5.'):
+            self.assertEqual(HalsteadClassifier.OPERAND,
+                             self.generic.classify(token), token)
+
+    def test_bare_dot_and_ellipsis_stay_operators(self):
+        for token in ('.', '..', '...', '.foo'):
+            self.assertEqual(HalsteadClassifier.OPERATOR,
+                             self.generic.classify(token), token)
+
     def test_generic_c_family_keywords(self):
         self.assertEqual(HalsteadClassifier.OPERATOR,
                          self.generic.classify('int'))

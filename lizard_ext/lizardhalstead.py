@@ -189,7 +189,8 @@ class HalsteadClassifier(object):  # pylint: disable=too-few-public-methods
         if not token or token.isspace():
             return self.SKIP
         first = token[0]
-        if first in "\"'" or first.isdigit():
+        if first in "\"'" or first.isdigit() or \
+            (first == "." and token[1:2].isdigit()):
             # A string or numeric literal: lizard emits each quoted run or
             # number (or number fragment) as a single token.
             return self.OPERAND
